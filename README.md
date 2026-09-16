@@ -80,7 +80,7 @@ logger:
 
 `914` responses indicate a device ID, local key, or protocol mismatch. `902` responses indicate that the configured host did not receive a reply. If the port is reachable and the credentials are correct, stop other local Tuya clients while testing because the inverter may only allow one session.
 
-After a successful setup, up to three consecutive polling failures are treated as transient: the last successful values are retained while the session is rebuilt. Continued failures mark the entities unavailable; a later successful frame automatically restores them.
+After a successful setup, up to ten consecutive polling failures are treated as transient (normally around 10-15 minutes): the last successful values are retained while the session is rebuilt. Continued failures mark the entities unavailable; a later successful frame automatically restores them.
 
 ## Development
 
