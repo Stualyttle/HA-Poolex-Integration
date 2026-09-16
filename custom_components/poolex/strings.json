@@ -19,7 +19,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Unable to read the inverter over the local network."
+      "cannot_connect": "Unable to read the inverter over the local network.",
+      "invalid_ip": "Enter a valid IP address."
     },
     "abort": {
       "already_configured": "This device is already configured."
