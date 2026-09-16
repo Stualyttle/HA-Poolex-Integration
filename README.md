@@ -61,6 +61,25 @@ The integration maintains one authenticated persistent Tuya LAN session, sends t
 
 The device must be reachable from Home Assistant across the local network or VLAN. A DHCP reservation is recommended because the configured IP address is used directly.
 
+## Troubleshooting
+
+Run a TCP check from the Home Assistant host or Terminal add-on against the inverter on port `6668`:
+
+```text
+nc -vz <inverter-ip> 6668
+```
+
+For detailed Tuya response diagnostics, temporarily enable these loggers in Home Assistant:
+
+```yaml
+logger:
+  logs:
+    custom_components.poolex: debug
+    tinytuya: debug
+```
+
+`914` responses indicate a device ID, local key, or protocol mismatch. `902` responses indicate that the configured host did not receive a reply. If the port is reachable and the credentials are correct, stop other local Tuya clients while testing because the inverter may only allow one session.
+
 ## Development
 
 The protocol-only tests can be run without Home Assistant:

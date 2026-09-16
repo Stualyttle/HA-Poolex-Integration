@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
 
@@ -88,61 +89,90 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             rawData={"dps": {}},
         )
 
-    def _drain_frame(self, device: tinytuya.Device) -> dict[str, Any] | None:
+    @staticmethod
+    def _summarize_response(
+        result: Any,
+        outer_datapoints: set[str],
+        errors: set[str],
+    ) -> None:
+        """Record safe response diagnostics without retaining credentials."""
+        if not isinstance(result, Mapping):
+            return
+
+        outer_datapoints.update(
+            str(datapoint) for datapoint in extract_outer_datapoints(result)
+        )
+        error = result.get("Error")
+        if error:
+            code = result.get("Err")
+            summary = f"{code}: {error}" if code else str(error)
+            errors.add(summary[:160])
+
+    def _drain_frame(
+        self, device: tinytuya.Device
+    ) -> tuple[dict[str, Any] | None, set[str], set[str]]:
         """Drain the persistent response socket for one telemetry frame."""
         deadline = time.monotonic() + QUERY_RECEIVE_TIMEOUT * QUERY_RECEIVE_ATTEMPTS
         outer_datapoints: set[str] = set()
+        errors: set[str] = set()
         while time.monotonic() < deadline:
             result = device.receive()
-            outer_datapoints.update(
-                str(datapoint) for datapoint in extract_outer_datapoints(result)
-            )
+            self._summarize_response(result, outer_datapoints, errors)
             payload = extract_telemetry_payload(result)
             if payload is None:
                 continue
             telemetry = decode_telemetry(payload)
             if telemetry is not None:
-                return telemetry
-        if outer_datapoints:
-            _LOGGER.debug(
-                "No recognized Poolex telemetry frame in outer Tuya datapoints: %s",
-                sorted(outer_datapoints),
-            )
-        return None
+                return telemetry, outer_datapoints, errors
+        return None, outer_datapoints, errors
 
-    def _read_frame(self, device: tinytuya.Device) -> dict[str, Any] | None:
+    def _read_frame(
+        self, device: tinytuya.Device
+    ) -> tuple[dict[str, Any] | None, set[str], set[str]]:
         """Use the vendor query and the two known LAN refresh fallbacks."""
+        outer_datapoints: set[str] = set()
+        errors: set[str] = set()
+
         device.send(self._query_payload(device))
-        telemetry = self._drain_frame(device)
+        telemetry, seen, response_errors = self._drain_frame(device)
+        outer_datapoints.update(seen)
+        errors.update(response_errors)
         if telemetry is not None:
-            return telemetry
+            return telemetry, outer_datapoints, errors
 
         # Some firmware revisions only publish DP 21 after a LAN DP refresh.
         refresh_result = device.updatedps([4103])
+        self._summarize_response(refresh_result, outer_datapoints, errors)
         payload = extract_telemetry_payload(refresh_result)
         if payload is not None:
             telemetry = decode_telemetry(payload)
             if telemetry is not None:
-                return telemetry
-        telemetry = self._drain_frame(device)
+                return telemetry, outer_datapoints, errors
+        telemetry, seen, response_errors = self._drain_frame(device)
+        outer_datapoints.update(seen)
+        errors.update(response_errors)
         if telemetry is not None:
-            return telemetry
+            return telemetry, outer_datapoints, errors
 
         # AP_CONFIG is a read-only product/status request on this device and
         # has returned the same current DP 21 frame on observed firmware.
         product_result = device.product()
+        self._summarize_response(product_result, outer_datapoints, errors)
         payload = extract_telemetry_payload(product_result)
         if payload is not None:
             telemetry = decode_telemetry(payload)
             if telemetry is not None:
-                return telemetry
-        return self._drain_frame(device)
+                return telemetry, outer_datapoints, errors
+        telemetry, seen, response_errors = self._drain_frame(device)
+        outer_datapoints.update(seen)
+        errors.update(response_errors)
+        return telemetry, outer_datapoints, errors
 
     def _poll_sync(self) -> dict[str, Any]:
         """Poll the inverter from a worker thread."""
         try:
             device = self._get_device()
-            telemetry = self._read_frame(device)
+            telemetry, outer_datapoints, errors = self._read_frame(device)
         except (
             OSError,
             TimeoutError,
@@ -155,8 +185,14 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if telemetry is None:
             self._close_device()
+            details = []
+            if outer_datapoints:
+                details.append(f"outer datapoints={sorted(outer_datapoints)}")
+            if errors:
+                details.append(f"tuya_responses={sorted(errors)}")
+            detail_text = f" ({'; '.join(details)})" if details else ""
             raise PoolexCommunicationError(
-                "The inverter did not return a telemetry frame"
+                f"The inverter did not return a telemetry frame{detail_text}"
             )
         return telemetry
 
