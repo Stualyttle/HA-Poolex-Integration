@@ -4,6 +4,8 @@ This custom integration locally polls the Tuya-enabled **Poolex PV-KITPNP-900 / 
 
 Communication is local only: Home Assistant connects directly to the inverter over Tuya protocol 3.5 on TCP port 6668. No Tuya cloud API is used for polling.
 
+The integration uses a fresh Tuya LAN session for every poll to avoid stale firmware sessions.
+
 ## Disclaimer
 
 This is an independent personal project created for personal use and is not affiliated with, endorsed by, sponsored by, or supported by Poolex, TSUN, Tuya, or any of their affiliates. Poolex, TSUN, Tuya, and related names and marks belong to their respective owners. The integration is provided "as is", without support, warranty, guarantee, or assurance of compatibility, safety, accuracy, or continued operation. Use it at your own risk.
