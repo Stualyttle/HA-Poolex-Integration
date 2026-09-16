@@ -14,7 +14,7 @@
           "device_ip": "The inverter's fixed or reserved IP address.",
           "device_id": "Tuya app: device settings > device information > virtual ID.",
           "local_key": "Tuya IoT Platform > Devices > Local Key. Keep this value private.",
-          "poll_interval": "1-300 seconds are supported. 30 seconds is recommended; lower values may increase device/network load."
+          "poll_interval": "1-300 seconds are supported. The default is 1 second; higher values reduce device/network load."
         }
       }
     },
@@ -35,7 +35,7 @@
         "poll_interval": "Poll interval (seconds)"
       },
       "data_description": {
-        "poll_interval": "The supported range is 1-300 seconds. 30 seconds is recommended; lower values may increase device/network load."
+        "poll_interval": "The supported range is 1-300 seconds. The default is 1 second; higher values reduce device/network load."
       }
     }
   }
