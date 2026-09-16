@@ -95,12 +95,6 @@
       "last_successful_poll": {
         "name": "Last Successful Poll"
       },
-      "failed_polls": {
-        "name": "Failed Polls Since Last Success"
-      },
-      "polls_until_idle_fallback": {
-        "name": "Polls Until Idle Fallback"
-      },
       "raw_frame": {
         "name": "Raw Telemetry Frame"
       }

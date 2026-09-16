@@ -200,18 +200,4 @@ SENSOR_DEFINITIONS = (
         "entity_category": EntityCategory.DIAGNOSTIC,
         "icon": "mdi:clock-check-outline",
     },
-    {
-        "key": "failed_polls",
-        "unit": "polls",
-        "state_class": SensorStateClass.MEASUREMENT,
-        "entity_category": EntityCategory.DIAGNOSTIC,
-        "icon": "mdi:alert-counter",
-    },
-    {
-        "key": "polls_until_idle_fallback",
-        "unit": "polls",
-        "state_class": SensorStateClass.MEASUREMENT,
-        "entity_category": EntityCategory.DIAGNOSTIC,
-        "icon": "mdi:timer-sand",
-    },
 )

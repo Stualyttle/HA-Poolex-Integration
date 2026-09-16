@@ -13,7 +13,7 @@ import tinytuya
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     CONF_DEVICE_ID,
@@ -41,7 +41,6 @@ FAST_QUERY_RECEIVE_ATTEMPTS = 3
 FAST_RETRY_FAILURES = 3
 POLL_TIMEOUT_SECONDS = 30
 PASSIVE_RECEIVE_ATTEMPTS = 1
-MAX_TRANSIENT_FAILURES = 10
 
 
 class PoolexCommunicationError(Exception):
@@ -328,14 +327,11 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @staticmethod
     def _build_no_production_data(
         last_successful_poll: datetime | None,
-        failed_polls: int,
     ) -> dict[str, Any]:
         """Build a safe idle state when the inverter is silent at night."""
         return {
             "communication_ok": False,
             "last_successful_poll": last_successful_poll,
-            "failed_polls": failed_polls,
-            "polls_until_idle_fallback": 0,
             "status": "idle",
             "ac_output_power": 0.0,
             "dc_input_power": 0.0,
@@ -358,9 +354,7 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @classmethod
     def initial_data(cls) -> dict[str, Any]:
         """Return the immediate zero-production state before the first poll."""
-        data = cls._build_no_production_data(None, 0)
-        data["polls_until_idle_fallback"] = MAX_TRANSIENT_FAILURES
-        return data
+        return cls._build_no_production_data(None)
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Run one single-flight poll and skip overlapping refresh requests."""
@@ -386,51 +380,18 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if self._consecutive_failures <= FAST_RETRY_FAILURES
                     else self._normal_update_interval
                 )
-                if (
-                    self.data is not None
-                    and self._consecutive_failures <= MAX_TRANSIENT_FAILURES
-                ):
-                    _LOGGER.warning(
-                        "Poolex poll failed (%d/%d); retaining the last "
-                        "successful telemetry frame: %s",
-                        self._consecutive_failures,
-                        MAX_TRANSIENT_FAILURES,
-                        err,
-                    )
-                    return {
-                        **self.data,
-                        "failed_polls": self._consecutive_failures,
-                        "polls_until_idle_fallback": max(
-                            0,
-                            MAX_TRANSIENT_FAILURES - self._consecutive_failures,
-                        ),
-                    }
-
-                if self._consecutive_failures > MAX_TRANSIENT_FAILURES:
-                    if self._consecutive_failures == MAX_TRANSIENT_FAILURES + 1:
-                        _LOGGER.warning(
-                            "Poolex telemetry has been silent for %d poll "
-                            "failure(s); assuming no solar production and "
-                            "publishing an idle zero-production state",
-                            self._consecutive_failures,
-                        )
-                    last_successful_poll = (
-                        self.data.get("last_successful_poll")
-                        if self.data is not None
-                        else None
-                    )
-                    return self._build_no_production_data(
-                        last_successful_poll,
-                        self._consecutive_failures,
-                    )
-
-                _LOGGER.error(
-                    "Poolex telemetry unavailable after %d consecutive poll "
-                    "failure(s): %s",
+                last_successful_poll = (
+                    self.data.get("last_successful_poll")
+                    if self.data is not None
+                    else None
+                )
+                _LOGGER.warning(
+                    "Poolex poll failed (%d); switching to zero-production "
+                    "Idle state: %s",
                     self._consecutive_failures,
                     err,
                 )
-                raise UpdateFailed(str(err)) from err
+                return self._build_no_production_data(last_successful_poll)
 
             failed_polls = self._consecutive_failures
             if failed_polls:
@@ -443,8 +404,6 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return {
                 **data,
                 "last_successful_poll": datetime.now(timezone.utc),
-                "failed_polls": 0,
-                "polls_until_idle_fallback": MAX_TRANSIENT_FAILURES,
             }
 
     async def async_shutdown(self) -> None:
