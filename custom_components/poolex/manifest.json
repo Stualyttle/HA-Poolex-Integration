@@ -1,0 +1,19 @@
+{
+  "domain": "poolex",
+  "name": "Poolex Solar Inverter",
+  "codeowners": [
+    "@Stualyttle"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/Stualyttle/HA-Poolex-Integration",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/Stualyttle/HA-Poolex-Integration/issues",
+  "loggers": [
+    "tinytuya"
+  ],
+  "requirements": [
+    "tinytuya>=1.20.0"
+  ],
+  "version": "0.1.0"
+}

@@ -1,0 +1,90 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Poolex TSOL-MX800 Balcony",
+        "description": "Connect directly to the inverter over your local network. The device ID and local key are used only for the encrypted Tuya LAN session.",
+        "data": {
+          "device_ip": "Device IP address",
+          "device_id": "Tuya device ID",
+          "local_key": "Tuya local key",
+          "poll_interval": "Poll interval (seconds)"
+        },
+        "data_description": {
+          "device_ip": "The inverter's fixed or reserved IP address.",
+          "device_id": "Tuya app: device settings > device information > virtual ID.",
+          "local_key": "Tuya IoT Platform > Devices > Local Key. Keep this value private.",
+          "poll_interval": "The device normally needs a few seconds to produce a fresh frame; 30 seconds is recommended."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to read the inverter over the local network."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "producing": "Producing",
+          "idle": "Idle",
+          "alarm": "Alarm"
+        }
+      },
+      "ac_output_power": {
+        "name": "AC Output Power"
+      },
+      "dc_input_power": {
+        "name": "DC Input Power"
+      },
+      "ac_voltage": {
+        "name": "AC Voltage"
+      },
+      "ac_current": {
+        "name": "AC Current"
+      },
+      "ac_frequency": {
+        "name": "AC Frequency"
+      },
+      "ac_power_factor": {
+        "name": "AC Power Factor"
+      },
+      "pv1_voltage": {
+        "name": "PV Input 1 Voltage"
+      },
+      "pv1_current": {
+        "name": "PV Input 1 Current"
+      },
+      "pv1_power": {
+        "name": "PV Input 1 Power"
+      },
+      "pv2_voltage": {
+        "name": "PV Input 2 Voltage"
+      },
+      "pv2_current": {
+        "name": "PV Input 2 Current"
+      },
+      "pv2_power": {
+        "name": "PV Input 2 Power"
+      },
+      "output_power_limit": {
+        "name": "Output Power Limit"
+      },
+      "inverter_temperature": {
+        "name": "Inverter Temperature"
+      },
+      "raw_frame": {
+        "name": "Raw Telemetry Frame"
+      }
+    },
+    "binary_sensor": {
+      "alarm": {
+        "name": "Alarm"
+      }
+    }
+  }
+}
