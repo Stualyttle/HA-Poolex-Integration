@@ -67,7 +67,7 @@ Unmapped datapoints are intentionally retained as numeric diagnostic entities so
 
 ## Local polling behavior
 
-The integration opens a fresh authenticated Tuya LAN session for each poll, sends the vendor status query, drains the response for the proprietary telemetry frame, and closes the session afterward. This avoids stale-session failures on firmware that does not reliably keep TCP sessions alive. Polls are single-flight, have a 30-second execution deadline, and perform up to three short fresh-session retries before returning to the normal interval. It does not write configuration values or enable a push stream. If the inverter is unreachable, entities become unavailable and Home Assistant retries on the configured interval.
+The integration opens a fresh authenticated Tuya LAN session for each poll, arms the vendor telemetry stream using the observed local DP19 request, drains the DP25 response, and closes the session afterward. This mirrors the action performed when opening the inverter in the Tuya app and avoids stale-session failures on firmware that does not reliably keep TCP sessions alive. The arm request is a telemetry-report request and does not change output or inverter configuration. Polls are single-flight, have a 30-second execution deadline, and perform up to three short fresh-session retries before returning to the normal interval. If the inverter is unreachable, entities become unavailable and Home Assistant retries on the configured interval.
 
 The device must be reachable from Home Assistant across the local network or VLAN. A DHCP reservation is recommended because the configured IP address is used directly.
 

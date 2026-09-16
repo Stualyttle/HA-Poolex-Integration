@@ -22,6 +22,8 @@ from .const import (
     CONF_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
+    TUYA_STREAM_ARM_DP,
+    TUYA_STREAM_ARM_VALUE,
     TUYA_VERSION,
 )
 from .protocol import (
@@ -179,6 +181,13 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         outer_datapoints: set[str] = set()
         errors: set[str] = set()
 
+        # The vendor app arms the inverter's periodic telemetry report with
+        # this raw local command. It does not change output or configuration.
+        device.set_value(
+            TUYA_STREAM_ARM_DP,
+            TUYA_STREAM_ARM_VALUE,
+            nowait=True,
+        )
         telemetry, seen, response_errors = self._drain_frame(
             device, attempts=PASSIVE_RECEIVE_ATTEMPTS, deadline=deadline
         )
