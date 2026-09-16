@@ -17,7 +17,7 @@ async def _async_update_listener(
 
 
 def _remove_stale_poll_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Remove health entities replaced by the immediate idle fallback."""
+    """Remove diagnostic entities replaced by the raw frame sensor."""
     from homeassistant.helpers import entity_registry as er
 
     from .const import CONF_DEVICE_ID
@@ -27,8 +27,11 @@ def _remove_stale_poll_entities(hass: HomeAssistant, entry: ConfigEntry) -> None
         f"{entry.data[CONF_DEVICE_ID]}_failed_polls",
         f"{entry.data[CONF_DEVICE_ID]}_polls_until_idle_fallback",
     }
+    raw_prefix = f"{entry.data[CONF_DEVICE_ID]}_raw_dp_"
     for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
-        if entity.unique_id in stale_unique_ids:
+        if entity.unique_id in stale_unique_ids or (
+            entity.unique_id and entity.unique_id.startswith(raw_prefix)
+        ):
             registry.async_remove(entity.entity_id)
 
 

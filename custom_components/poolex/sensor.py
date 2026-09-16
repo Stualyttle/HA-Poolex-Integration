@@ -15,7 +15,6 @@ from .const import (
     CONF_DEVICE_ID,
     DOMAIN,
     SENSOR_DEFINITIONS,
-    UNKNOWN_RAW_DP_IDS,
     build_device_info,
 )
 from .coordinator import PoolexCoordinator
@@ -32,10 +31,6 @@ async def async_setup_entry(
         PoolexSensor(coordinator, entry, definition)
         for definition in SENSOR_DEFINITIONS
     ]
-    entities.extend(
-        PoolexRawDatapointSensor(coordinator, entry, datapoint)
-        for datapoint in UNKNOWN_RAW_DP_IDS
-    )
     entities.append(PoolexRawFrameSensor(coordinator, entry))
     async_add_entities(entities)
 
@@ -62,6 +57,10 @@ class PoolexSensor(CoordinatorEntity[PoolexCoordinator], SensorEntity):
         self._attr_native_unit_of_measurement = definition.get("unit")
         self._attr_state_class = definition.get("state_class")
         self._attr_entity_category = definition.get("entity_category")
+        if "entity_registry_enabled_default" in definition:
+            self._attr_entity_registry_enabled_default = definition[
+                "entity_registry_enabled_default"
+            ]
         if definition.get("options") is not None:
             self._attr_options = definition["options"]
         if "icon" in definition:
@@ -79,42 +78,6 @@ class PoolexSensor(CoordinatorEntity[PoolexCoordinator], SensorEntity):
     @property
     def available(self) -> bool:
         """Only expose a value while a fresh telemetry frame is available."""
-        return super().available and self.native_value is not None
-
-
-class PoolexRawDatapointSensor(
-    CoordinatorEntity[PoolexCoordinator], SensorEntity
-):
-    """Expose an observed but not yet semantically mapped raw datapoint."""
-
-    _attr_has_entity_name = True
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_icon = "mdi:counter"
-
-    def __init__(
-        self,
-        coordinator: PoolexCoordinator,
-        entry: ConfigEntry,
-        datapoint: int,
-    ) -> None:
-        """Initialize a raw datapoint sensor."""
-        super().__init__(coordinator)
-        self._datapoint = datapoint
-        self._attr_unique_id = f"{entry.data[CONF_DEVICE_ID]}_raw_dp_{datapoint}"
-        self._attr_name = f"Raw Datapoint {datapoint}"
-        self._attr_device_info = build_device_info(entry)
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the raw unsigned 16-bit datapoint value."""
-        if self.coordinator.data is None:
-            return None
-        raw_dps = self.coordinator.data.get("raw_dps", {})
-        return raw_dps.get(self._datapoint)
-
-    @property
-    def available(self) -> bool:
-        """Report unavailable until this datapoint has been observed."""
         return super().available and self.native_value is not None
 
 

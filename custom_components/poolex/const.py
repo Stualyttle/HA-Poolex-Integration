@@ -39,32 +39,10 @@ TUYA_PORT = 6668
 TUYA_VERSION = 3.5
 TUYA_STREAM_ARM_DP = 19
 TUYA_STREAM_ARM_VALUE = "AQEBAQE="
-RAW_DP_IDS = tuple(range(9, 56))
 
 DEVICE_NAME = "Poolex TSOL-MX800 Balcony"
 DEVICE_MANUFACTURER = "Poolex / TSUN"
 DEVICE_MODEL = "PV-KITPNP-900 / TSOL-MX800"
-
-KNOWN_RAW_DP_IDS = frozenset(
-    {
-        DP_AC_VOLTAGE,
-        DP_AC_CURRENT,
-        DP_AC_FREQUENCY,
-        DP_POWER_FACTOR,
-        DP_ALARM_CODE,
-        DP_OUTPUT_LIMIT,
-        DP_AC_POWER,
-        DP_PV1_VOLTAGE,
-        DP_PV1_CURRENT,
-        DP_PV1_POWER,
-        DP_PV2_VOLTAGE,
-        DP_PV2_CURRENT,
-        DP_PV2_POWER,
-        DP_TEMPERATURE,
-    }
-)
-UNKNOWN_RAW_DP_IDS = tuple(dp_id for dp_id in RAW_DP_IDS if dp_id not in KNOWN_RAW_DP_IDS)
-
 
 def build_device_info(entry) -> dict:
     """Return common device information for all entities."""
@@ -198,6 +176,7 @@ SENSOR_DEFINITIONS = (
         "key": "last_successful_poll",
         "device_class": SensorDeviceClass.TIMESTAMP,
         "entity_category": EntityCategory.DIAGNOSTIC,
+        "entity_registry_enabled_default": False,
         "icon": "mdi:clock-check-outline",
     },
 )

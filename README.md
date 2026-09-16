@@ -45,8 +45,8 @@ The integration creates a single device with these decoded entities:
 - Alarm problem binary sensor with the numeric alarm code
 - Inverter temperature
 - Output power limit reported by the inverter
-- Raw diagnostic sensors for every observed inner datapoint that does not yet have a confirmed semantic mapping
-- An optional disabled-by-default raw telemetry frame sensor containing the complete Base64 frame and decoded values
+- An optional disabled-by-default Raw Telemetry Frame diagnostic sensor containing the complete Base64 frame and decoded datapoint values
+- A disabled-by-default Last Successful Poll diagnostic timestamp
 
 The observed DP 21 payload is a proprietary binary frame. The mappings currently confirmed from the supplied live device are:
 
