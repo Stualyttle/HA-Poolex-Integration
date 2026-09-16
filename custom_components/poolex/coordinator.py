@@ -250,6 +250,13 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "raw_payload": None,
         }
 
+    @classmethod
+    def initial_data(cls) -> dict[str, Any]:
+        """Return the immediate zero-production state before the first poll."""
+        data = cls._build_no_production_data(None, 0)
+        data["polls_until_idle_fallback"] = MAX_TRANSIENT_FAILURES
+        return data
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch and decode one local telemetry frame."""
         async with self._device_lock:
@@ -268,7 +275,14 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         MAX_TRANSIENT_FAILURES,
                         err,
                     )
-                    return self.data
+                    return {
+                        **self.data,
+                        "failed_polls": self._consecutive_failures,
+                        "polls_until_idle_fallback": max(
+                            0,
+                            MAX_TRANSIENT_FAILURES - self._consecutive_failures,
+                        ),
+                    }
 
                 if self._consecutive_failures > MAX_TRANSIENT_FAILURES:
                     if self._consecutive_failures == MAX_TRANSIENT_FAILURES + 1:

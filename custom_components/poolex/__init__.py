@@ -17,10 +17,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     coordinator = PoolexCoordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
+    coordinator.async_set_updated_data(coordinator.initial_data())
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    hass.async_create_task(
+        coordinator.async_refresh(),
+        name=f"{DOMAIN}_{entry.entry_id}_initial_refresh",
+    )
     return True
 
 

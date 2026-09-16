@@ -67,6 +67,8 @@ The integration maintains one authenticated persistent Tuya LAN session, sends t
 
 The device must be reachable from Home Assistant across the local network or VLAN. A DHCP reservation is recommended because the configured IP address is used directly.
 
+Setup is non-blocking: the device and zero-production `Idle` entities are registered immediately, while the first local telemetry query runs in the background.
+
 ## Troubleshooting
 
 Run a TCP check from the Home Assistant host or Terminal add-on against the inverter on port `6668`:
