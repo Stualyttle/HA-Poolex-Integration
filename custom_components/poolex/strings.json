@@ -26,6 +26,20 @@
       "already_configured": "This device is already configured."
     }
   },
+  "options": {
+  "step": {
+    "init": {
+      "title": "Poolex TSOL-MX800 Balcony options",
+      "description": "Adjust how often the inverter is polled over the local network.",
+      "data": {
+        "poll_interval": "Poll interval (seconds)"
+      },
+      "data_description": {
+        "poll_interval": "The supported range is 10-300 seconds. 30 seconds is recommended."
+      }
+    }
+  }
+  },
   "entity": {
     "sensor": {
       "status": {

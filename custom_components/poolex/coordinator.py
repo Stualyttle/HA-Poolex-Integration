@@ -51,7 +51,10 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
         self._normal_update_interval = timedelta(
-            seconds=entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+            seconds=entry.options.get(
+                CONF_POLL_INTERVAL,
+                entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL),
+            )
         )
         super().__init__(
             hass,

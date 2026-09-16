@@ -9,12 +9,20 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 
+async def _async_update_listener(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Reload the coordinator after options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up a Poolex inverter from a config entry."""
     from .const import DOMAIN, PLATFORMS
     from .coordinator import PoolexCoordinator
 
     hass.data.setdefault(DOMAIN, {})
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     coordinator = PoolexCoordinator(hass, entry)
     coordinator.async_set_updated_data(coordinator.initial_data())

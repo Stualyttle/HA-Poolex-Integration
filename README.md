@@ -33,6 +33,8 @@ The setup form requires:
 
 The local key is stored in Home Assistant's config entry and is never part of this repository. Keep it private and rotate it if it is disclosed.
 
+After setup, use the integration's **Configure** cog to change the polling interval without re-entering the device credentials.
+
 ## Entities
 
 The integration creates a single device with these decoded entities:
