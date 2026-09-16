@@ -1,6 +1,6 @@
 """Protocol constants that do not require Home Assistant imports."""
 
-TELEMETRY_OUTER_DP = 21
+TELEMETRY_OUTER_DPS = (21, 25)
 
 DP_AC_VOLTAGE = 9
 DP_AC_CURRENT = 10

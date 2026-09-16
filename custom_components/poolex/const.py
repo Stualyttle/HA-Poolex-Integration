@@ -21,7 +21,6 @@ from .protocol_constants import (
     DP_PV2_POWER,
     DP_PV2_VOLTAGE,
     DP_TEMPERATURE,
-    TELEMETRY_OUTER_DP,
 )
 
 DOMAIN = "poolex"

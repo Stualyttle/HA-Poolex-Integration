@@ -22,7 +22,7 @@ from .protocol_constants import (
     DP_PV2_POWER,
     DP_PV2_VOLTAGE,
     DP_TEMPERATURE,
-    TELEMETRY_OUTER_DP,
+    TELEMETRY_OUTER_DPS,
 )
 
 
@@ -73,11 +73,12 @@ def extract_outer_datapoints(result: Mapping[str, Any] | None) -> Mapping[str, A
 def extract_telemetry_payload(result: Mapping[str, Any] | None) -> str | None:
     """Find the long raw telemetry payload in a Tuya response."""
     datapoints = extract_outer_datapoints(result)
-    payload = datapoints.get(str(TELEMETRY_OUTER_DP))
-    if payload is None:
-        payload = datapoints.get(TELEMETRY_OUTER_DP)
-    if isinstance(payload, str) and payload:
-        return payload
+    for outer_dp in TELEMETRY_OUTER_DPS:
+        payload = datapoints.get(str(outer_dp))
+        if payload is None:
+            payload = datapoints.get(outer_dp)
+        if isinstance(payload, str) and payload and decode_records(payload):
+            return payload
     return None
 
 

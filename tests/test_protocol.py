@@ -5,7 +5,11 @@ from __future__ import annotations
 import base64
 import unittest
 
-from custom_components.poolex.protocol import decode_records, decode_telemetry
+from custom_components.poolex.protocol import (
+    decode_records,
+    decode_telemetry,
+    extract_telemetry_payload,
+)
 
 
 def encoded_records(*records: tuple[int, int]) -> str:
@@ -56,6 +60,13 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(telemetry["ac_output_power"], 70.5)
         self.assertEqual(telemetry["dc_input_power"], 74.3)
         self.assertEqual(telemetry["inverter_temperature"], 32.0)
+
+    def test_extract_telemetry_from_outer_dp25(self) -> None:
+        payload = encoded_records((9, 2304), (15, 5009), (28, 49))
+        self.assertEqual(
+            extract_telemetry_payload({"dps": {"25": payload}}),
+            payload,
+        )
 
     def test_invalid_payload_is_ignored(self) -> None:
         self.assertEqual(decode_records("not-base64"), {})

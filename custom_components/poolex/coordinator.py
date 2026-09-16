@@ -23,7 +23,11 @@ from .const import (
     DOMAIN,
     TUYA_VERSION,
 )
-from .protocol import decode_telemetry, extract_telemetry_payload
+from .protocol import (
+    decode_telemetry,
+    extract_outer_datapoints,
+    extract_telemetry_payload,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,14 +91,23 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _drain_frame(self, device: tinytuya.Device) -> dict[str, Any] | None:
         """Drain the persistent response socket for one telemetry frame."""
         deadline = time.monotonic() + QUERY_RECEIVE_TIMEOUT * QUERY_RECEIVE_ATTEMPTS
+        outer_datapoints: set[str] = set()
         while time.monotonic() < deadline:
             result = device.receive()
+            outer_datapoints.update(
+                str(datapoint) for datapoint in extract_outer_datapoints(result)
+            )
             payload = extract_telemetry_payload(result)
             if payload is None:
                 continue
             telemetry = decode_telemetry(payload)
             if telemetry is not None:
                 return telemetry
+        if outer_datapoints:
+            _LOGGER.debug(
+                "No recognized Poolex telemetry frame in outer Tuya datapoints: %s",
+                sorted(outer_datapoints),
+            )
         return None
 
     def _read_frame(self, device: tinytuya.Device) -> dict[str, Any] | None:
