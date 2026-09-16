@@ -34,6 +34,9 @@ _LOGGER = logging.getLogger(__name__)
 
 QUERY_RECEIVE_TIMEOUT = 3
 QUERY_RECEIVE_ATTEMPTS = 4
+FAST_SESSION_ATTEMPTS = 2
+FAST_QUERY_RECEIVE_ATTEMPTS = 3
+FAST_RETRY_FAILURES = 3
 PASSIVE_RECEIVE_ATTEMPTS = 1
 MAX_TRANSIENT_FAILURES = 10
 
@@ -47,13 +50,14 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
+        self._normal_update_interval = timedelta(
+            seconds=entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+        )
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(
-                seconds=entry.data.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
-            ),
+            update_interval=self._normal_update_interval,
         )
         self.entry = entry
         self._device: tinytuya.Device | None = None
@@ -138,7 +142,11 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return None, outer_datapoints, errors
 
     def _read_frame(
-        self, device: tinytuya.Device
+        self,
+        device: tinytuya.Device,
+        *,
+        receive_attempts: int = QUERY_RECEIVE_ATTEMPTS,
+        include_fallbacks: bool = True,
     ) -> tuple[dict[str, Any] | None, set[str], set[str]]:
         """Use passive listening, the vendor query, and LAN refresh fallbacks."""
         outer_datapoints: set[str] = set()
@@ -153,11 +161,16 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return telemetry, outer_datapoints, errors
 
         device.send(self._query_payload(device))
-        telemetry, seen, response_errors = self._drain_frame(device)
+        telemetry, seen, response_errors = self._drain_frame(
+            device, attempts=receive_attempts
+        )
         outer_datapoints.update(seen)
         errors.update(response_errors)
         if telemetry is not None:
             return telemetry, outer_datapoints, errors
+
+        if not include_fallbacks:
+            return None, outer_datapoints, errors
 
         # Some firmware revisions only publish DP 21 after a LAN DP refresh.
         refresh_result = device.updatedps([4103])
@@ -167,7 +180,9 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             telemetry = decode_telemetry(payload)
             if telemetry is not None:
                 return telemetry, outer_datapoints, errors
-        telemetry, seen, response_errors = self._drain_frame(device)
+        telemetry, seen, response_errors = self._drain_frame(
+            device, attempts=receive_attempts
+        )
         outer_datapoints.update(seen)
         errors.update(response_errors)
         if telemetry is not None:
@@ -182,47 +197,86 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             telemetry = decode_telemetry(payload)
             if telemetry is not None:
                 return telemetry, outer_datapoints, errors
-        telemetry, seen, response_errors = self._drain_frame(device)
+        telemetry, seen, response_errors = self._drain_frame(
+            device, attempts=receive_attempts
+        )
         outer_datapoints.update(seen)
         errors.update(response_errors)
         return telemetry, outer_datapoints, errors
 
     def _poll_sync(self) -> dict[str, Any]:
-        """Poll the inverter from a worker thread using a fresh session."""
-        self._close_device()
-        try:
-            device = self._get_device()
-            telemetry, outer_datapoints, errors = self._read_frame(device)
-        except (
-            OSError,
-            TimeoutError,
-            ValueError,
-            RuntimeError,
-            tinytuya.DecodeError,
-        ) as err:
-            self._close_device()
-            _LOGGER.debug(
-                "Poolex Tuya LAN request raised %s: %s",
-                type(err).__name__,
-                err,
-            )
-            raise PoolexCommunicationError("Tuya LAN request failed") from err
+        """Poll the inverter with short fresh-session retries."""
+        outer_datapoints: set[str] = set()
+        errors: set[str] = set()
 
-        if telemetry is None:
+        for attempt in range(FAST_SESSION_ATTEMPTS):
             self._close_device()
-            details = []
-            if outer_datapoints:
-                details.append(f"outer datapoints={sorted(outer_datapoints)}")
-            if errors:
-                details.append(f"tuya_responses={sorted(errors)}")
-            detail_text = f" ({'; '.join(details)})" if details else ""
-            raise PoolexCommunicationError(
-                f"The inverter did not return a telemetry frame{detail_text}"
-            )
-        try:
-            return telemetry
-        finally:
-            self._close_device()
+            try:
+                device = self._get_device()
+                _LOGGER.debug(
+                    "Starting Poolex fresh session attempt %d/%d",
+                    attempt + 1,
+                    FAST_SESSION_ATTEMPTS,
+                )
+                telemetry, seen, response_errors = self._read_frame(
+                    device,
+                    receive_attempts=FAST_QUERY_RECEIVE_ATTEMPTS,
+                    include_fallbacks=False,
+                )
+                outer_datapoints.update(seen)
+                errors.update(response_errors)
+                if telemetry is not None:
+                    return telemetry
+            except (
+                OSError,
+                TimeoutError,
+                ValueError,
+                RuntimeError,
+                tinytuya.DecodeError,
+            ) as err:
+                errors.add(f"{type(err).__name__}: {str(err)[:120]}")
+                _LOGGER.debug(
+                    "Poolex fresh session attempt %d failed: %s",
+                    attempt + 1,
+                    err,
+                )
+            finally:
+                self._close_device()
+
+        # Keep the slower legacy paths for initial compatibility discovery, but
+        # do not pay their full timeout on every already-established outage.
+        if self._consecutive_failures == 0:
+            try:
+                device = self._get_device()
+                telemetry, seen, response_errors = self._read_frame(
+                    device,
+                    include_fallbacks=True,
+                )
+                outer_datapoints.update(seen)
+                errors.update(response_errors)
+                if telemetry is not None:
+                    return telemetry
+            except (
+                OSError,
+                TimeoutError,
+                ValueError,
+                RuntimeError,
+                tinytuya.DecodeError,
+            ) as err:
+                errors.add(f"{type(err).__name__}: {str(err)[:120]}")
+                _LOGGER.debug("Poolex compatibility poll failed: %s", err)
+            finally:
+                self._close_device()
+
+        details = []
+        if outer_datapoints:
+            details.append(f"outer datapoints={sorted(outer_datapoints)}")
+        if errors:
+            details.append(f"tuya_responses={sorted(errors)}")
+        detail_text = f" ({'; '.join(details)})" if details else ""
+        raise PoolexCommunicationError(
+            f"The inverter did not return a telemetry frame{detail_text}"
+        )
 
     @staticmethod
     def _build_no_production_data(
@@ -268,6 +322,11 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data = await self.hass.async_add_executor_job(self._poll_sync)
             except PoolexCommunicationError as err:
                 self._consecutive_failures += 1
+                self.update_interval = (
+                    timedelta(seconds=5)
+                    if self._consecutive_failures <= FAST_RETRY_FAILURES
+                    else self._normal_update_interval
+                )
                 if (
                     self.data is not None
                     and self._consecutive_failures <= MAX_TRANSIENT_FAILURES
@@ -321,6 +380,7 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     failed_polls,
                 )
                 self._consecutive_failures = 0
+            self.update_interval = self._normal_update_interval
             return {
                 **data,
                 "last_successful_poll": datetime.now(timezone.utc),
