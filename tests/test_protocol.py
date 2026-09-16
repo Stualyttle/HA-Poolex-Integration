@@ -61,6 +61,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(telemetry["ac_output_power"], 70.5)
         self.assertEqual(telemetry["dc_input_power"], 74.3)
         self.assertEqual(telemetry["inverter_temperature"], 32.0)
+        self.assertNotIn("last_successful_poll", telemetry)
 
     def test_extract_telemetry_from_outer_dp25(self) -> None:
         payload = encoded_records((9, 2304), (15, 5009), (28, 49))

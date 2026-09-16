@@ -6,7 +6,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Mapping
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import tinytuya
@@ -221,10 +221,16 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return telemetry
 
     @staticmethod
-    def _build_no_production_data() -> dict[str, Any]:
+    def _build_no_production_data(
+        last_successful_poll: datetime | None,
+        failed_polls: int,
+    ) -> dict[str, Any]:
         """Build a safe idle state when the inverter is silent at night."""
         return {
             "communication_ok": False,
+            "last_successful_poll": last_successful_poll,
+            "failed_polls": failed_polls,
+            "polls_until_idle_fallback": 0,
             "status": "idle",
             "ac_output_power": 0.0,
             "dc_input_power": 0.0,
@@ -272,7 +278,15 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "publishing an idle zero-production state",
                             self._consecutive_failures,
                         )
-                    return self._build_no_production_data()
+                    last_successful_poll = (
+                        self.data.get("last_successful_poll")
+                        if self.data is not None
+                        else None
+                    )
+                    return self._build_no_production_data(
+                        last_successful_poll,
+                        self._consecutive_failures,
+                    )
 
                 _LOGGER.error(
                     "Poolex telemetry unavailable after %d consecutive poll "
@@ -282,13 +296,19 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
                 raise UpdateFailed(str(err)) from err
 
-            if self._consecutive_failures:
+            failed_polls = self._consecutive_failures
+            if failed_polls:
                 _LOGGER.info(
                     "Poolex telemetry restored after %d failed poll(s)",
-                    self._consecutive_failures,
+                    failed_polls,
                 )
                 self._consecutive_failures = 0
-            return data
+            return {
+                **data,
+                "last_successful_poll": datetime.now(timezone.utc),
+                "failed_polls": 0,
+                "polls_until_idle_fallback": MAX_TRANSIENT_FAILURES,
+            }
 
     async def async_shutdown(self) -> None:
         """Close the local session when the config entry is unloaded."""
