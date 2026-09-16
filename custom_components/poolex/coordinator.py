@@ -188,7 +188,8 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return telemetry, outer_datapoints, errors
 
     def _poll_sync(self) -> dict[str, Any]:
-        """Poll the inverter from a worker thread."""
+        """Poll the inverter from a worker thread using a fresh session."""
+        self._close_device()
         try:
             device = self._get_device()
             telemetry, outer_datapoints, errors = self._read_frame(device)
@@ -218,7 +219,10 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise PoolexCommunicationError(
                 f"The inverter did not return a telemetry frame{detail_text}"
             )
-        return telemetry
+        try:
+            return telemetry
+        finally:
+            self._close_device()
 
     @staticmethod
     def _build_no_production_data(

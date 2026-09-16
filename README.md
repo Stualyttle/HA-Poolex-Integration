@@ -63,7 +63,7 @@ Unmapped datapoints are intentionally retained as numeric diagnostic entities so
 
 ## Local polling behavior
 
-The integration maintains one authenticated persistent Tuya LAN session, sends the vendor status query, and drains the response for the proprietary telemetry frame. It does not write configuration values or enable a push stream. If the inverter is unreachable, entities become unavailable and Home Assistant retries on the configured interval.
+The integration opens a fresh authenticated Tuya LAN session for each poll, sends the vendor status query, drains the response for the proprietary telemetry frame, and closes the session afterward. This avoids stale-session failures on firmware that does not reliably keep TCP sessions alive. It does not write configuration values or enable a push stream. If the inverter is unreachable, entities become unavailable and Home Assistant retries on the configured interval.
 
 The device must be reachable from Home Assistant across the local network or VLAN. A DHCP reservation is recommended because the configured IP address is used directly.
 
