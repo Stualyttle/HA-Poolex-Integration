@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Solar inverter">
+  <rect width="512" height="512" rx="112" fill="#0f172a"/>
+  <circle cx="150" cy="145" r="54" fill="#f59e0b"/>
+  <g stroke="#f59e0b" stroke-width="14" stroke-linecap="round">
+    <path d="M150 55v-24"/>
+    <path d="M150 259v-24"/>
+    <path d="m60 145-24 0"/>
+    <path d="m264 145-24 0"/>
+    <path d="m86 81-18-18"/>
+    <path d="m214 209-18-18"/>
+    <path d="m214 81 18-18"/>
+    <path d="m86 209-18 18"/>
+  </g>
+  <path d="M72 336 126 224h260l54 112Z" fill="#14b8a6"/>
+  <path d="M72 336h368l-42 112H114Z" fill="#0d9488"/>
+  <g stroke="#ccfbf1" stroke-width="8" opacity=".9">
+    <path d="M170 224 145 336"/>
+    <path d="m235 224-8 112"/>
+    <path d="m300 224 8 112"/>
+    <path d="m365 224 25 112"/>
+    <path d="M99 280h314"/>
+  </g>
+  <path d="M208 390h96" stroke="#f8fafc" stroke-width="18" stroke-linecap="round"/>
+</svg>
