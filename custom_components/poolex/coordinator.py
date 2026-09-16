@@ -37,6 +37,7 @@ QUERY_RECEIVE_ATTEMPTS = 4
 FAST_SESSION_ATTEMPTS = 2
 FAST_QUERY_RECEIVE_ATTEMPTS = 3
 FAST_RETRY_FAILURES = 3
+POLL_TIMEOUT_SECONDS = 30
 PASSIVE_RECEIVE_ATTEMPTS = 1
 MAX_TRANSIENT_FAILURES = 10
 
@@ -66,6 +67,7 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._device: tinytuya.Device | None = None
         self._device_lock = asyncio.Lock()
         self._consecutive_failures = 0
+        self._poll_in_progress = False
 
     def _get_device(self) -> tinytuya.Device:
         """Create the persistent TinyTuya client in the executor thread."""
@@ -90,6 +92,20 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self._device is not None:
             self._device.close()
             self._device = None
+
+    @staticmethod
+    def _set_device_timeout(
+        device: tinytuya.Device, deadline: float
+    ) -> bool:
+        """Bound the next TinyTuya socket operation by the poll deadline."""
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        timeout = max(0.1, min(QUERY_RECEIVE_TIMEOUT, remaining))
+        device.set_socketTimeout(timeout)
+        if device.socket is not None:
+            device.socket.settimeout(timeout)
+        return True
 
     @staticmethod
     def _query_payload(device: tinytuya.Device):
@@ -122,12 +138,19 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         device: tinytuya.Device,
         attempts: int = QUERY_RECEIVE_ATTEMPTS,
+        deadline: float | None = None,
     ) -> tuple[dict[str, Any] | None, set[str], set[str]]:
         """Drain the persistent response socket for one telemetry frame."""
-        deadline = time.monotonic() + QUERY_RECEIVE_TIMEOUT * attempts
+        local_deadline = time.monotonic() + QUERY_RECEIVE_TIMEOUT * attempts
+        if deadline is None:
+            deadline = local_deadline
+        else:
+            deadline = min(deadline, local_deadline)
         outer_datapoints: set[str] = set()
         errors: set[str] = set()
         while time.monotonic() < deadline:
+            if not self._set_device_timeout(device, deadline):
+                break
             result = device.receive()
             self._summarize_response(result, outer_datapoints, errors)
             payload = extract_telemetry_payload(result)
@@ -150,22 +173,25 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         *,
         receive_attempts: int = QUERY_RECEIVE_ATTEMPTS,
         include_fallbacks: bool = True,
+        deadline: float | None = None,
     ) -> tuple[dict[str, Any] | None, set[str], set[str]]:
         """Use passive listening, the vendor query, and LAN refresh fallbacks."""
         outer_datapoints: set[str] = set()
         errors: set[str] = set()
 
         telemetry, seen, response_errors = self._drain_frame(
-            device, attempts=PASSIVE_RECEIVE_ATTEMPTS
+            device, attempts=PASSIVE_RECEIVE_ATTEMPTS, deadline=deadline
         )
         outer_datapoints.update(seen)
         errors.update(response_errors)
         if telemetry is not None:
             return telemetry, outer_datapoints, errors
 
+        if deadline is not None and not self._set_device_timeout(device, deadline):
+            return None, outer_datapoints, errors
         device.send(self._query_payload(device))
         telemetry, seen, response_errors = self._drain_frame(
-            device, attempts=receive_attempts
+            device, attempts=receive_attempts, deadline=deadline
         )
         outer_datapoints.update(seen)
         errors.update(response_errors)
@@ -176,6 +202,8 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return None, outer_datapoints, errors
 
         # Some firmware revisions only publish DP 21 after a LAN DP refresh.
+        if deadline is not None and not self._set_device_timeout(device, deadline):
+            return None, outer_datapoints, errors
         refresh_result = device.updatedps([4103])
         self._summarize_response(refresh_result, outer_datapoints, errors)
         payload = extract_telemetry_payload(refresh_result)
@@ -184,7 +212,7 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if telemetry is not None:
                 return telemetry, outer_datapoints, errors
         telemetry, seen, response_errors = self._drain_frame(
-            device, attempts=receive_attempts
+            device, attempts=receive_attempts, deadline=deadline
         )
         outer_datapoints.update(seen)
         errors.update(response_errors)
@@ -193,6 +221,8 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # AP_CONFIG is a read-only product/status request on this device and
         # has returned the same current DP 21 frame on observed firmware.
+        if deadline is not None and not self._set_device_timeout(device, deadline):
+            return None, outer_datapoints, errors
         product_result = device.product()
         self._summarize_response(product_result, outer_datapoints, errors)
         payload = extract_telemetry_payload(product_result)
@@ -201,7 +231,7 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if telemetry is not None:
                 return telemetry, outer_datapoints, errors
         telemetry, seen, response_errors = self._drain_frame(
-            device, attempts=receive_attempts
+            device, attempts=receive_attempts, deadline=deadline
         )
         outer_datapoints.update(seen)
         errors.update(response_errors)
@@ -211,8 +241,11 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Poll the inverter with short fresh-session retries."""
         outer_datapoints: set[str] = set()
         errors: set[str] = set()
+        deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
 
         for attempt in range(FAST_SESSION_ATTEMPTS):
+            if time.monotonic() >= deadline:
+                break
             self._close_device()
             try:
                 device = self._get_device()
@@ -225,6 +258,7 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     device,
                     receive_attempts=FAST_QUERY_RECEIVE_ATTEMPTS,
                     include_fallbacks=False,
+                    deadline=deadline,
                 )
                 outer_datapoints.update(seen)
                 errors.update(response_errors)
@@ -248,12 +282,13 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Keep the slower legacy paths for initial compatibility discovery, but
         # do not pay their full timeout on every already-established outage.
-        if self._consecutive_failures == 0:
+        if self._consecutive_failures == 0 and time.monotonic() < deadline:
             try:
                 device = self._get_device()
                 telemetry, seen, response_errors = self._read_frame(
                     device,
                     include_fallbacks=True,
+                    deadline=deadline,
                 )
                 outer_datapoints.update(seen)
                 errors.update(response_errors)
@@ -319,6 +354,18 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return data
 
     async def _async_update_data(self) -> dict[str, Any]:
+        """Run one single-flight poll and skip overlapping refresh requests."""
+        if self._poll_in_progress:
+            _LOGGER.debug("Skipping overlapping Poolex poll request")
+            return self.data if self.data is not None else self.initial_data()
+
+        self._poll_in_progress = True
+        try:
+            return await self._async_update_data_single()
+        finally:
+            self._poll_in_progress = False
+
+    async def _async_update_data_single(self) -> dict[str, Any]:
         """Fetch and decode one local telemetry frame."""
         async with self._device_lock:
             try:
