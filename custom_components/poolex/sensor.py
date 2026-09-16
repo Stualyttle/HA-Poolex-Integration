@@ -145,6 +145,15 @@ class PoolexRawFrameSensor(
         return self.coordinator.data.get("ac_output_power")
 
     @property
+    def available(self) -> bool:
+        """Keep the raw diagnostic unavailable for fallback idle data."""
+        return (
+            super().available
+            and self.coordinator.data is not None
+            and self.coordinator.data.get("communication_ok", True)
+        )
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return raw datapoints and the original Base64 frame."""
         if self.coordinator.data is None:

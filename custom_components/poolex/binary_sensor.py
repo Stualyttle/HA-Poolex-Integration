@@ -59,6 +59,7 @@ class PoolexAlarmSensor(
         return (
             super().available
             and self.coordinator.data is not None
+            and self.coordinator.data.get("communication_ok", True)
             and self.coordinator.data.get("alarm_code") is not None
         )
 

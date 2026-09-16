@@ -220,6 +220,30 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
         return telemetry
 
+    @staticmethod
+    def _build_no_production_data() -> dict[str, Any]:
+        """Build a safe idle state when the inverter is silent at night."""
+        return {
+            "communication_ok": False,
+            "status": "idle",
+            "ac_output_power": 0.0,
+            "dc_input_power": 0.0,
+            "ac_voltage": 0.0,
+            "ac_current": 0.0,
+            "ac_frequency": 0.0,
+            "ac_power_factor": 0.0,
+            "pv1_voltage": 0.0,
+            "pv1_current": 0.0,
+            "pv1_power": 0.0,
+            "pv2_voltage": 0.0,
+            "pv2_current": 0.0,
+            "pv2_power": 0.0,
+            "inverter_temperature": 0.0,
+            "alarm_code": None,
+            "raw_dps": {},
+            "raw_payload": None,
+        }
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch and decode one local telemetry frame."""
         async with self._device_lock:
@@ -239,6 +263,16 @@ class PoolexCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         err,
                     )
                     return self.data
+
+                if self._consecutive_failures > MAX_TRANSIENT_FAILURES:
+                    if self._consecutive_failures == MAX_TRANSIENT_FAILURES + 1:
+                        _LOGGER.warning(
+                            "Poolex telemetry has been silent for %d poll "
+                            "failure(s); assuming no solar production and "
+                            "publishing an idle zero-production state",
+                            self._consecutive_failures,
+                        )
+                    return self._build_no_production_data()
 
                 _LOGGER.error(
                     "Poolex telemetry unavailable after %d consecutive poll "

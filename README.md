@@ -86,7 +86,7 @@ logger:
 
 `914` responses indicate a device ID, local key, or protocol mismatch. `902` responses indicate that the configured host did not receive a reply. If the port is reachable and the credentials are correct, stop other local Tuya clients while testing because the inverter may only allow one session.
 
-After a successful setup, up to ten consecutive polling failures are treated as transient (normally around 10-15 minutes): the last successful values are retained while the session is rebuilt. Continued failures mark the entities unavailable; a later successful frame automatically restores them.
+After a successful setup, up to ten consecutive polling failures are treated as transient (normally around 10-15 minutes): the last successful values are retained while the session is rebuilt. If the inverter remains silent beyond that threshold, the integration assumes no solar production, reports zero for normal production/measurement sensors, and sets Status to `Idle`. Raw datapoints and diagnostic entities remain unavailable. A later successful frame automatically restores live values.
 
 ## Development
 

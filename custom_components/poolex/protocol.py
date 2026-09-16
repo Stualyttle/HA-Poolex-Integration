@@ -113,6 +113,7 @@ def decode_telemetry(payload: str | bytes) -> dict[str, Any] | None:
     )
 
     return {
+        "communication_ok": True,
         "status": status,
         "ac_output_power": ac_output_power,
         "dc_input_power": dc_input_power,

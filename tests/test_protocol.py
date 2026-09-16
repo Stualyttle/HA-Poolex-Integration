@@ -52,6 +52,7 @@ class ProtocolTests(unittest.TestCase):
 
         self.assertIsNotNone(telemetry)
         assert telemetry is not None
+        self.assertTrue(telemetry["communication_ok"])
         self.assertEqual(telemetry["status"], "producing")
         self.assertEqual(telemetry["ac_voltage"], 228.8)
         self.assertEqual(telemetry["ac_current"], 0.3)
