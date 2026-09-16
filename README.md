@@ -29,7 +29,7 @@ The setup form requires:
 | Device IP address | The inverter's reserved DHCP address, for example `192.168.1.100` |
 | Tuya device ID | The device's virtual ID from the Tuya or Poolex app |
 | Tuya local key | The 16-character local key from the Tuya IoT Platform |
-| Poll interval | 30 seconds is recommended; the supported range is 10-300 seconds |
+| Poll interval | 30 seconds is recommended; the supported range is 1-300 seconds |
 
 The local key is stored in Home Assistant's config entry and is never part of this repository. Keep it private and rotate it if it is disclosed.
 
